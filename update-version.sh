@@ -2,7 +2,7 @@
 set -e
 
 # Config
-PHP_CONFIG="wp/wp-content/themes/databox/Util/DBoxConfig.php"
+PHP_CONFIG="config.php"
 
 # Get current version
 if [[ -n "$GITHUB_REF" && "$GITHUB_REF" == refs/tags/* ]]; then

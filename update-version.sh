@@ -1,0 +1,86 @@
+#!/bin/bash
+set -e
+
+# Config
+PHP_CONFIG="wp/wp-content/themes/databox/Util/DBoxConfig.php"
+
+# Get current version
+if [[ -n "$GITHUB_REF" && "$GITHUB_REF" == refs/tags/* ]]; then
+    CURRENT_TAG=${GITHUB_REF#refs/tags/}
+else
+    CURRENT_TAG=$(git rev-parse --short HEAD)
+fi
+
+# Get information from GitHub Actions environment
+if [[ -n "$GITHUB_ACTIONS" && -n "$LAST_STABLE_TAG" ]]; then
+    # Use raw data from GitHub Actions workflow
+    PREV_TAG="$LAST_STABLE_TAG"
+    CHANGED_FILES="$CHANGED_FILES"
+    
+    echo "Processing information from GitHub Actions:"
+    echo "  Stable tag: $PREV_TAG"
+    echo "  Changed files: $CHANGED_FILES"
+else
+    echo "ERROR: This script must be run in GitHub Actions with required environment variables"
+    echo "Required: LAST_STABLE_TAG, CHANGED_FILES"
+    exit 1
+fi
+
+echo "Comparing $PREV_TAG -> $CURRENT_TAG"
+
+# Process the changed files to determine what needs updating
+echo "🔍 Analyzing changed files..."
+
+# Check for CSS changes
+CSS_CHANGED="false"
+if echo "$CHANGED_FILES" | grep -qE '\.(css|less|scss)$'; then
+    CSS_CHANGED="true"
+fi
+
+# Check for JS changes  
+JS_CHANGED="false"
+if echo "$CHANGED_FILES" | grep -qE '\.(js|ts|jsx|tsx)$'; then
+    JS_CHANGED="true"
+fi
+
+echo "Analysis results:"
+echo "  CSS changed: $CSS_CHANGED"
+echo "  JS changed: $JS_CHANGED"
+
+# Read current versions
+CURRENT_CSS=$(grep "WEBSITE_CSS_VERSION" "$PHP_CONFIG" | grep -oE '[0-9]+' || echo "0")
+CURRENT_JS=$(grep "WEBSITE_JS_VERSION" "$PHP_CONFIG" | grep -oE '[0-9]+' || echo "0")
+
+# Update CSS version if CSS files changed
+if [[ "$CSS_CHANGED" == "true" ]]; then
+    NEW_CSS=$((CURRENT_CSS + 1))
+    sed -i.bak "s/const WEBSITE_CSS_VERSION = .*/const WEBSITE_CSS_VERSION = $NEW_CSS;/" "$PHP_CONFIG"
+    echo "CSS: $CURRENT_CSS -> $NEW_CSS"
+fi
+
+# Update JS version if JS files changed
+if [[ "$JS_CHANGED" == "true" ]]; then
+    NEW_JS=$((CURRENT_JS + 1))
+    sed -i.bak "s/const WEBSITE_JS_VERSION = .*/const WEBSITE_JS_VERSION = $NEW_JS;/" "$PHP_CONFIG"
+    echo "JS: $CURRENT_JS -> $NEW_JS"
+fi
+
+# Always update website version
+sed -i.bak "s/const WEBSITE_VERSION = '.*'/const WEBSITE_VERSION = '$CURRENT_TAG'/" "$PHP_CONFIG"
+
+# Clean up backup files
+rm -f "$PHP_CONFIG.bak"
+
+# Verify PHP syntax
+php -l "$PHP_CONFIG" >/dev/null
+
+# Commit if changes exist
+if ! git diff --quiet "$PHP_CONFIG"; then
+    git config user.name "github-actions"
+    git config user.email "actions@github.com"
+    git add "$PHP_CONFIG"
+    git commit -m "Update versions for $CURRENT_TAG"
+    git push
+fi
+
+echo "Done!"

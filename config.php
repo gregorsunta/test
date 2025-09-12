@@ -2,7 +2,7 @@
 
 class DBoxConfig {
 
-    const WEBSITE_VERSION = '7.2.2'; // Used for rollbar to track website version.
+    const WEBSITE_VERSION = '7.2.3'; // Used for rollbar to track website version.
 
     const WEBSITE_CSS_VERSION = 3;
 

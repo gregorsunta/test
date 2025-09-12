@@ -15,6 +15,7 @@ jobs:
       with:
         fetch-depth: 0  # Fetch all history for proper tag comparison
         token: ${{ secrets.GITHUB_TOKEN }}
+        ref: main
     
     - name: Gather release and change information
       id: gather-info

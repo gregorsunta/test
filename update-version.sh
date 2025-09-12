@@ -11,12 +11,6 @@ else
     CURRENT_TAG=$(git rev-parse --short HEAD)
 fi
 
-# If we're running on a release tag and it's the same as the stable tag,
-# we should still update the version to reflect the current release
-if [[ "$CURRENT_TAG" == "$PREV_TAG" ]]; then
-    echo "⚠️  Running on release tag $CURRENT_TAG - will update version to reflect current release"
-fi
-
 # Get information from GitHub Actions environment
 if [[ -n "$GITHUB_ACTIONS" && -n "$LAST_STABLE_TAG" ]]; then
     # Use raw data from GitHub Actions workflow
@@ -32,6 +26,12 @@ else
     exit 1
 fi
 
+# If we're running on a release tag and it's the same as the stable tag,
+# we should still update the version to reflect the current release
+if [[ "$CURRENT_TAG" == "$PREV_TAG" ]]; then
+    echo "⚠️  Running on release tag $CURRENT_TAG - will update version to reflect current release"
+fi
+
 echo "Comparing $PREV_TAG -> $CURRENT_TAG"
 
 # Process the changed files to determine what needs updating
@@ -39,14 +39,22 @@ echo "🔍 Analyzing changed files..."
 
 # Check for CSS changes
 CSS_CHANGED="false"
+echo "🔍 Checking for CSS changes in: '$CHANGED_FILES'"
 if echo "$CHANGED_FILES" | grep -qE '\.(css|less|scss)$'; then
     CSS_CHANGED="true"
+    echo "✅ CSS files detected in changed files"
+else
+    echo "❌ No CSS files found in changed files"
 fi
 
 # Check for JS changes  
 JS_CHANGED="false"
+echo "🔍 Checking for JS changes in: '$CHANGED_FILES'"
 if echo "$CHANGED_FILES" | grep -qE '\.(js|ts|jsx|tsx)$'; then
     JS_CHANGED="true"
+    echo "✅ JS files detected in changed files"
+else
+    echo "❌ No JS files found in changed files"
 fi
 
 echo "Analysis results:"

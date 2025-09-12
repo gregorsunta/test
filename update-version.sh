@@ -11,6 +11,12 @@ else
     CURRENT_TAG=$(git rev-parse --short HEAD)
 fi
 
+# If we're running on a release tag and it's the same as the stable tag,
+# we should still update the version to reflect the current release
+if [[ "$CURRENT_TAG" == "$PREV_TAG" ]]; then
+    echo "⚠️  Running on release tag $CURRENT_TAG - will update version to reflect current release"
+fi
+
 # Get information from GitHub Actions environment
 if [[ -n "$GITHUB_ACTIONS" && -n "$LAST_STABLE_TAG" ]]; then
     # Use raw data from GitHub Actions workflow
@@ -66,7 +72,21 @@ if [[ "$JS_CHANGED" == "true" ]]; then
 fi
 
 # Always update website version
+echo "🔄 Updating WEBSITE_VERSION to: $CURRENT_TAG"
 sed -i.bak "s/const WEBSITE_VERSION = '.*'/const WEBSITE_VERSION = '$CURRENT_TAG'/" "$PHP_CONFIG"
+
+# Show what changed
+echo "📝 Version update details:"
+echo "  Previous WEBSITE_VERSION: $(grep "WEBSITE_VERSION" "$PHP_CONFIG.bak" | head -1)"
+echo "  New WEBSITE_VERSION: $(grep "WEBSITE_VERSION" "$PHP_CONFIG" | head -1)"
+
+# Check if there are actual changes
+if ! git diff --quiet "$PHP_CONFIG"; then
+    echo "✅ Changes detected in config.php"
+    git diff "$PHP_CONFIG"
+else
+    echo "ℹ️  No changes detected - version already up to date"
+fi
 
 # Clean up backup files
 rm -f "$PHP_CONFIG.bak"

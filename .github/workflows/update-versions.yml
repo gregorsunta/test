@@ -21,10 +21,15 @@ jobs:
       run: |
         echo "🔍 Finding latest stable release..."
         
-        # Get all releases and find the latest non-pre-release
-        LATEST_STABLE=$(gh api repos/${{ github.repository }}/releases --jq '.[] | select(.prerelease == false) | .tag_name' | head -n1)
+        # Get all releases using curl with GITHUB_TOKEN
+        RELEASES_JSON=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
+          -H "Accept: application/vnd.github.v3+json" \
+          "https://api.github.com/repos/${{ github.repository }}/releases")
         
-        if [[ -z "$LATEST_STABLE" ]]; then
+        # Find the latest non-pre-release using jq
+        LATEST_STABLE=$(echo "$RELEASES_JSON" | jq -r '.[] | select(.prerelease == false) | .tag_name' | head -n1)
+        
+        if [[ -z "$LATEST_STABLE" || "$LATEST_STABLE" == "null" ]]; then
           echo "⚠️  No GitHub releases found, falling back to git tags..."
           # Fallback to latest tag in x.x.x format if no releases found
           LATEST_STABLE=$(git tag -l --sort=-version:refname | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | head -n1)
@@ -55,6 +60,8 @@ jobs:
         else
           echo "  No CSS/JS files changed"
         fi
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     
     - name: Update versions
       run: |

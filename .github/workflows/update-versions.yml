@@ -5,6 +5,10 @@ on:
     types: [ published ]  # Only run when a release is published (not edited)
   workflow_dispatch:  # Allow manual triggering
 
+permissions:
+  contents: write  # Allow the workflow to push changes
+  pull-requests: read  # Allow reading PR information if needed
+
 jobs:
   update-versions:
     runs-on: ubuntu-latest

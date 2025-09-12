@@ -30,35 +30,35 @@ jobs:
           -H "Accept: application/vnd.github.v3+json" \
           "https://api.github.com/repos/${{ github.repository }}/releases")
         
-        # Find the previous stable release (not the current one)
-        # Get all stable releases and skip the first one (current) to get the previous
-        PREVIOUS_STABLE=$(echo "$RELEASES_JSON" | jq -r '.[] | select(.prerelease == false) | .tag_name' | head -n2 | tail -n1)
+        # Find the most recent stable release for changelog comparison
+        # Get the first (most recent) stable release
+        LATEST_STABLE=$(echo "$RELEASES_JSON" | jq -r '.[] | select(.prerelease == false) | .tag_name' | head -n1)
         
-        if [[ -z "$PREVIOUS_STABLE" || "$PREVIOUS_STABLE" == "null" ]]; then
-          echo "⚠️  No previous GitHub releases found, falling back to git tags..."
-          # Fallback to previous tag in x.x.x format if no releases found
-          PREVIOUS_STABLE=$(git tag -l --sort=-version:refname | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | head -n2 | tail -n1)
+        if [[ -z "$LATEST_STABLE" || "$LATEST_STABLE" == "null" ]]; then
+          echo "⚠️  No GitHub releases found, falling back to git tags..."
+          # Fallback to latest tag in x.x.x format if no releases found
+          LATEST_STABLE=$(git tag -l --sort=-version:refname | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | head -n1)
         fi
         
-        if [[ -z "$PREVIOUS_STABLE" ]]; then
-          echo "❌ No previous stable tags found!"
+        if [[ -z "$LATEST_STABLE" ]]; then
+          echo "❌ No stable tags found!"
           exit 1
         fi
         
-        echo "✅ Found previous stable tag: $PREVIOUS_STABLE"
+        echo "✅ Found latest stable tag: $LATEST_STABLE"
         
         # Get changed files (only CSS/JS related files for performance)
         echo "🔍 Gathering changed files..."
-        CHANGED_FILES=$(git diff --name-only "$PREVIOUS_STABLE" HEAD -- "*.css" "*.less" "*.scss" "*.js" "*.ts" "*.jsx" "*.tsx")
+        CHANGED_FILES=$(git diff --name-only "$LATEST_STABLE" HEAD -- "*.css" "*.less" "*.scss" "*.js" "*.ts" "*.jsx" "*.tsx")
         
         # Set outputs - only raw data, no processing
-        echo "stable_tag=$PREVIOUS_STABLE" >> $GITHUB_OUTPUT
+        echo "stable_tag=$LATEST_STABLE" >> $GITHUB_OUTPUT
         echo "changed_files<<EOF" >> $GITHUB_OUTPUT
         echo "$CHANGED_FILES" >> $GITHUB_OUTPUT
         echo "EOF" >> $GITHUB_OUTPUT
         
         echo "📊 Gathered information:"
-        echo "  Previous stable tag: $PREVIOUS_STABLE"
+        echo "  Latest stable tag: $LATEST_STABLE"
         if [[ -n "$CHANGED_FILES" ]]; then
           echo "  Changed files:"
           echo "$CHANGED_FILES" | sed 's/^/    /'
@@ -82,7 +82,7 @@ jobs:
       run: |
         echo "## Version Update Summary" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "**Previous Stable Tag:** \`${{ steps.gather-info.outputs.stable_tag }}\`" >> $GITHUB_STEP_SUMMARY
+        echo "**Latest Stable Tag:** \`${{ steps.gather-info.outputs.stable_tag }}\`" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         if [[ -n "${{ steps.gather-info.outputs.changed_files }}" ]]; then
           echo "**Changed Files:**" >> $GITHUB_STEP_SUMMARY

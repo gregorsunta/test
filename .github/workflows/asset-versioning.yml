@@ -40,14 +40,18 @@ jobs:
           js_bumped=false
           
           if [[ -n "$latest_tag" ]]; then
-            if git log ${latest_tag}..HEAD --oneline --grep="Auto-bump asset versions" -- config.php | \
-               xargs -I {} git show {} -- config.php | grep -q "^+.*WEBSITE_CSS_VERSION"; then
-              css_bumped=true
-            fi
+            # Get commit hashes (not full log lines) for auto-bump commits
+            auto_bump_commits=$(git log ${latest_tag}..HEAD --format="%H" --grep="Auto-bump asset versions")
             
-            if git log ${latest_tag}..HEAD --oneline --grep="Auto-bump asset versions" -- config.php | \
-               xargs -I {} git show {} -- config.php | grep -q "^+.*WEBSITE_JS_VERSION"; then
-              js_bumped=true
+            if [[ -n "$auto_bump_commits" ]]; then
+              for commit in $auto_bump_commits; do
+                if git show "$commit" -- config.php | grep -q "^+.*WEBSITE_CSS_VERSION"; then
+                  css_bumped=true
+                fi
+                if git show "$commit" -- config.php | grep -q "^+.*WEBSITE_JS_VERSION"; then
+                  js_bumped=true
+                fi
+              done
             fi
           fi
           

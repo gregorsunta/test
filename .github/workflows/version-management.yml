@@ -1,0 +1,150 @@
+name: Version Management
+
+on:
+  push:
+    branches: [main, develop]
+  release:
+    types: [published, prereleased]
+
+jobs:
+  bump-asset-versions:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@v40
+        with:
+          files: |
+            **/*.css
+            **/*.js
+
+      - name: Check for CSS/JS changes
+        id: check-changes
+        run: |
+          echo "css_changed=false" >> $GITHUB_OUTPUT
+          echo "js_changed=false" >> $GITHUB_OUTPUT
+          
+          if [[ "${{ steps.changed-files.outputs.any_changed }}" == "true" ]]; then
+            changed_files="${{ steps.changed-files.outputs.all_changed_files }}"
+            echo "Changed files: $changed_files"
+            
+            if echo "$changed_files" | grep -q "\.css$"; then
+              echo "css_changed=true" >> $GITHUB_OUTPUT
+              echo "CSS files changed"
+            fi
+            
+            if echo "$changed_files" | grep -q "\.js$"; then
+              echo "js_changed=true" >> $GITHUB_OUTPUT
+              echo "JS files changed"
+            fi
+          fi
+
+      - name: Bump asset versions
+        if: steps.check-changes.outputs.css_changed == 'true' || steps.check-changes.outputs.js_changed == 'true'
+        run: |
+          # Read current versions
+          css_version=$(grep "WEBSITE_CSS_VERSION = " config.php | sed 's/.*WEBSITE_CSS_VERSION = \([0-9]*\);.*/\1/')
+          js_version=$(grep "WEBSITE_JS_VERSION = " config.php | sed 's/.*WEBSITE_JS_VERSION = \([0-9]*\);.*/\1/')
+          
+          echo "Current CSS version: $css_version"
+          echo "Current JS version: $js_version"
+          
+          # Increment versions if files changed
+          if [ "${{ steps.check-changes.outputs.css_changed }}" == "true" ]; then
+            new_css_version=$((css_version + 1))
+            sed -i "s/const WEBSITE_CSS_VERSION = $css_version;/const WEBSITE_CSS_VERSION = $new_css_version;/" config.php
+            echo "Bumped CSS version to: $new_css_version"
+          fi
+          
+          if [ "${{ steps.check-changes.outputs.js_changed }}" == "true" ]; then
+            new_js_version=$((js_version + 1))
+            sed -i "s/const WEBSITE_JS_VERSION = $js_version;/const WEBSITE_JS_VERSION = $new_js_version;/" config.php
+            echo "Bumped JS version to: $new_js_version"
+          fi
+
+      - name: Commit version changes
+        if: steps.check-changes.outputs.css_changed == 'true' || steps.check-changes.outputs.js_changed == 'true'
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add config.php
+          git commit -m "Auto-bump asset versions [skip ci]"
+          git push
+
+  bump-website-version:
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Determine version bump type
+        id: version-type
+        run: |
+          if [[ "${{ github.event.release.prerelease }}" == "true" ]]; then
+            echo "bump_type=prerelease" >> $GITHUB_OUTPUT
+          else
+            echo "bump_type=patch" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Bump website version
+        id: bump-version
+        run: |
+          # Extract current version
+          current_version=$(grep "WEBSITE_VERSION = '" config.php | sed "s/.*WEBSITE_VERSION = '\([^']*\)'.*/\1/")
+          echo "Current website version: $current_version"
+          
+          # Parse version components
+          IFS='.' read -ra VERSION_PARTS <<< "$current_version"
+          major=${VERSION_PARTS[0]}
+          minor=${VERSION_PARTS[1]}
+          patch=${VERSION_PARTS[2]}
+          
+          # Increment based on type
+          if [ "${{ steps.version-type.outputs.bump_type }}" == "prerelease" ]; then
+            # For prereleases, increment patch and add -pre suffix
+            patch=$((patch + 1))
+            new_version="$major.$minor.$patch-pre"
+          else
+            # For regular releases, increment patch
+            patch=$((patch + 1))
+            new_version="$major.$minor.$patch"
+          fi
+          
+          echo "New website version: $new_version"
+          echo "new_version=$new_version" >> $GITHUB_OUTPUT
+          
+          # Update config.php
+          sed -i "s/const WEBSITE_VERSION = '$current_version';/const WEBSITE_VERSION = '$new_version';/" config.php
+
+      - name: Commit version bump
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add config.php
+          git commit -m "Bump website version to ${{ steps.bump-version.outputs.new_version }}"
+          git push
+
+      - name: Notify Rollbar of deployment
+        env:
+          ROLLBAR_ACCESS_TOKEN: ${{ secrets.ROLLBAR_ACCESS_TOKEN }}
+        run: |
+          curl -X POST 'https://api.rollbar.com/api/1/deploy/' \
+            -H 'Content-Type: application/json' \
+            -H "X-Rollbar-Access-Token: $ROLLBAR_ACCESS_TOKEN" \
+            -d '{
+              "environment": "production",
+              "revision": "${{ steps.bump-version.outputs.new_version }}",
+              "rollbar_name": "GitHub Actions",
+              "local_username": "github-actions",
+              "comment": "Automated deployment via GitHub Actions - Release: ${{ github.event.release.tag_name }}"
+            }'

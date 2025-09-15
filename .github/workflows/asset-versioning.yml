@@ -41,16 +41,18 @@ jobs:
           js_bumped=false
           
           if [[ -n "$latest_tag" ]]; then
-            auto_bump_commits=$(git log ${latest_tag}..HEAD --format="%H" --grep="Auto-bump asset versions")
-            if [[ -n "$auto_bump_commits" ]]; then
-              for commit in $auto_bump_commits; do
-                if git show "$commit" -- config.php | grep -q "^+.*WEBSITE_CSS_VERSION"; then
-                  css_bumped=true
-                fi
-                if git show "$commit" -- config.php | grep -q "^+.*WEBSITE_JS_VERSION"; then
-                  js_bumped=true
-                fi
-              done
+            css_version_at_release=$(git show ${latest_tag}:config.php | grep "WEBSITE_CSS_VERSION = " | sed 's/.*= \([0-9]*\);.*/\1/' || echo "0")
+            js_version_at_release=$(git show ${latest_tag}:config.php | grep "WEBSITE_JS_VERSION = " | sed 's/.*= \([0-9]*\);.*/\1/' || echo "0")
+            
+            css_version_current=$(grep "WEBSITE_CSS_VERSION = " config.php | sed 's/.*= \([0-9]*\);.*/\1/')
+            js_version_current=$(grep "WEBSITE_JS_VERSION = " config.php | sed 's/.*= \([0-9]*\);.*/\1/')
+            
+            if [[ $css_version_current -gt $css_version_at_release ]]; then
+              css_bumped=true
+            fi
+            
+            if [[ $js_version_current -gt $js_version_at_release ]]; then
+              js_bumped=true
             fi
           fi
           
@@ -59,12 +61,10 @@ jobs:
           
           if [[ "${{ steps.changes.outputs.css_any_changed }}" == "true" && "$css_bumped" == "false" ]]; then
             bump_css=true
-            echo "✅ Will bump CSS version"
           fi
           
           if [[ "${{ steps.changes.outputs.js_any_changed }}" == "true" && "$js_bumped" == "false" ]]; then
             bump_js=true
-            echo "✅ Will bump JS version"
           fi
           
           echo "bump_css=$bump_css" >> $GITHUB_OUTPUT
@@ -83,7 +83,7 @@ jobs:
             fi
             new=$((current + 1))
             sed -i "s/const WEBSITE_CSS_VERSION = $current;/const WEBSITE_CSS_VERSION = $new;/" config.php
-            echo "🎨 CSS version: $current → $new"
+            echo "CSS: $current → $new"
           fi
           
           if [[ "${{ steps.check.outputs.bump_js }}" == "true" ]]; then
@@ -94,7 +94,7 @@ jobs:
             fi
             new=$((current + 1))
             sed -i "s/const WEBSITE_JS_VERSION = $current;/const WEBSITE_JS_VERSION = $new;/" config.php
-            echo "⚡ JS version: $current → $new"
+            echo "JS: $current → $new"
           fi
 
       - name: Commit changes

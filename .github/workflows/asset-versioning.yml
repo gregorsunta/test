@@ -3,184 +3,91 @@ name: Asset Version Management
 on:
   push:
     branches: [main]
+    paths: ['**/*.css', '**/*.js']
 
 permissions:
   contents: write
-  actions: read
 
 jobs:
-  bump-asset-versions:
+  bump-versions:
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
     runs-on: ubuntu-latest
+    
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
           fetch-tags: true
 
       - name: Get changed files
-        id: changed-files
+        id: changes
         uses: tj-actions/changed-files@v40
         with:
-          files: |
-            **/*.css
-            **/*.js
-          since_last_remote_commit: true
+          files_yaml: |
+            css:
+              - '**/*.css'
+            js:
+              - '**/*.js'
 
-      - name: Check for CSS/JS changes
-        id: check-changes
+      - name: Check if versions need bumping
+        id: check
         run: |
-          echo "css_changed=false" >> $GITHUB_OUTPUT
-          echo "js_changed=false" >> $GITHUB_OUTPUT
-          
-          echo "Debug: any_changed = ${{ steps.changed-files.outputs.any_changed }}"
-          echo "Debug: all_changed_files = ${{ steps.changed-files.outputs.all_changed_files }}"
-          
-          # Find the latest release tag
+          # Get latest release tag
           latest_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
-          if [[ -n "$latest_tag" ]]; then
-            echo "Latest release tag: $latest_tag"
-            
-            # Check if CSS/JS versions were already bumped since last release
-            # Look for auto-bump commits since the last release to see if versions were already incremented
-            
-            # Check if CSS and JS versions were independently bumped since last release
-            # We need to check the actual diff content to see which versions were changed
-            
-            css_bumped_since_release=0
-            js_bumped_since_release=0
-            
-            # Look at each auto-bump commit to see what it actually changed
-            while IFS= read -r commit_hash; do
-              if [[ -n "$commit_hash" ]]; then
-                echo "Checking auto-bump commit: $commit_hash"
-                # Check if this commit changed CSS version
-                if git show "$commit_hash" -- config.php | grep -q "^+.*WEBSITE_CSS_VERSION = "; then
-                  css_bumped_since_release=1
-                  echo "  - Found CSS version bump in $commit_hash"
-                fi
-                # Check if this commit changed JS version  
-                if git show "$commit_hash" -- config.php | grep -q "^+.*WEBSITE_JS_VERSION = "; then
-                  js_bumped_since_release=1
-                  echo "  - Found JS version bump in $commit_hash"
-                fi
-              fi
-            done <<< "$(git log ${latest_tag}..HEAD --oneline --grep="Auto-bump asset versions" --format="%H")"
-            
-            echo "=== BUMP STATUS SUMMARY ==="
-            echo "CSS bumped since release ${latest_tag}: $([[ $css_bumped_since_release -eq 1 ]] && echo 'YES' || echo 'NO')"
-            echo "JS bumped since release ${latest_tag}: $([[ $js_bumped_since_release -eq 1 ]] && echo 'YES' || echo 'NO')"
-            echo "=========================="
-            
-            # Debug the conditions that will be used later
-            echo "Debug: Will CSS be skipped? css_bumped_since_release($css_bumped_since_release) -ne 0 = $([[ $css_bumped_since_release -ne 0 ]] && echo 'YES (will skip)' || echo 'NO (will bump)')"
-            echo "Debug: Will JS be skipped? js_bumped_since_release($js_bumped_since_release) -ne 0 = $([[ $js_bumped_since_release -ne 0 ]] && echo 'YES (will skip)' || echo 'NO (will bump)')"
-          else
-            echo "No release tags found, proceeding with normal logic"
-            css_bumped_since_release=0
-            js_bumped_since_release=0
-          fi
           
-          # Primary method: use changed-files action
-          if [[ "${{ steps.changed-files.outputs.any_changed }}" == "true" ]]; then
-            changed_files="${{ steps.changed-files.outputs.all_changed_files }}"
-            echo "Changed files detected by action: $changed_files"
+          # Check if already bumped since release
+          css_bumped=false
+          js_bumped=false
+          
+          if [[ -n "$latest_tag" ]]; then
+            if git log ${latest_tag}..HEAD --oneline --grep="Auto-bump asset versions" -- config.php | \
+               xargs -I {} git show {} -- config.php | grep -q "^+.*WEBSITE_CSS_VERSION"; then
+              css_bumped=true
+            fi
             
-            # Check each file individually
-            for file in $changed_files; do
-              echo "Checking file: $file"
-              if [[ "$file" == *.css ]]; then
-                if [[ $css_bumped_since_release -eq 0 ]]; then
-                  echo "css_changed=true" >> $GITHUB_OUTPUT
-                  echo "✓ CSS file changed: $file (will bump version)"
-                else
-                  echo "⚠️ CSS file changed: $file (but version already bumped since last release)"
-                fi
-              fi
-              if [[ "$file" == *.js ]]; then
-                if [[ $js_bumped_since_release -eq 0 ]]; then
-                  echo "js_changed=true" >> $GITHUB_OUTPUT
-                  echo "✓ JS file changed: $file (will bump version)"
-                else
-                  echo "⚠️ JS file changed: $file (but version already bumped since last release)"
-                fi
-              fi
-            done
-          else
-            echo "Changed-files action found no CSS/JS changes"
-            
-            # Fallback method: use git diff
-            echo "Trying fallback git diff method..."
-            changed_files_git=$(git diff --name-only HEAD~1 HEAD | grep -E '\.(css|js)$' || true)
-            
-            if [[ -n "$changed_files_git" ]]; then
-              echo "Git diff found CSS/JS changes:"
-              for file in $changed_files_git; do
-                echo "Found changed file: $file"
-                if [[ "$file" == *.css ]]; then
-                  if [[ $css_bumped_since_release -eq 0 ]]; then
-                    echo "css_changed=true" >> $GITHUB_OUTPUT
-                    echo "✓ CSS file changed (git diff): $file (will bump version)"
-                  else
-                    echo "⚠️ CSS file changed (git diff): $file (but version already bumped since last release)"
-                  fi
-                fi
-                if [[ "$file" == *.js ]]; then
-                  if [[ $js_bumped_since_release -eq 0 ]]; then
-                    echo "js_changed=true" >> $GITHUB_OUTPUT
-                    echo "✓ JS file changed (git diff): $file (will bump version)"
-                  else
-                    echo "⚠️ JS file changed (git diff): $file (but version already bumped since last release)"
-                  fi
-                fi
-              done
-            else
-              echo "No CSS/JS files changed in this push (confirmed by git diff)"
+            if git log ${latest_tag}..HEAD --oneline --grep="Auto-bump asset versions" -- config.php | \
+               xargs -I {} git show {} -- config.php | grep -q "^+.*WEBSITE_JS_VERSION"; then
+              js_bumped=true
             fi
           fi
-
-      - name: Debug version bump conditions
-        run: |
-          echo "Debug: css_changed = ${{ steps.check-changes.outputs.css_changed }}"
-          echo "Debug: js_changed = ${{ steps.check-changes.outputs.js_changed }}"
-          echo "Debug: Should bump = ${{ steps.check-changes.outputs.css_changed == 'true' || steps.check-changes.outputs.js_changed == 'true' }}"
-
-      - name: Bump asset versions
-        if: steps.check-changes.outputs.css_changed == 'true' || steps.check-changes.outputs.js_changed == 'true'
-        run: |
-          # Read current versions
-          css_version=$(grep "WEBSITE_CSS_VERSION = " config.php | sed 's/.*WEBSITE_CSS_VERSION = \([0-9]*\);.*/\1/')
-          js_version=$(grep "WEBSITE_JS_VERSION = " config.php | sed 's/.*WEBSITE_JS_VERSION = \([0-9]*\);.*/\1/')
           
-          echo "Current CSS version: $css_version"
-          echo "Current JS version: $js_version"
+          # Determine what to bump
+          bump_css=false
+          bump_js=false
           
-          # Increment versions if files changed
-          if [ "${{ steps.check-changes.outputs.css_changed }}" == "true" ]; then
-            new_css_version=$((css_version + 1))
-            sed -i "s/const WEBSITE_CSS_VERSION = $css_version;/const WEBSITE_CSS_VERSION = $new_css_version;/" config.php
-            echo "Bumped CSS version to: $new_css_version"
+          if [[ "${{ steps.changes.outputs.css_any_changed }}" == "true" && "$css_bumped" == "false" ]]; then
+            bump_css=true
+            echo "✅ Will bump CSS version"
           fi
           
-          if [ "${{ steps.check-changes.outputs.js_changed }}" == "true" ]; then
-            new_js_version=$((js_version + 1))
-            sed -i "s/const WEBSITE_JS_VERSION = $js_version;/const WEBSITE_JS_VERSION = $new_js_version;/" config.php
-            echo "Bumped JS version to: $new_js_version"
+          if [[ "${{ steps.changes.outputs.js_any_changed }}" == "true" && "$js_bumped" == "false" ]]; then
+            bump_js=true
+            echo "✅ Will bump JS version"
+          fi
+          
+          echo "bump_css=$bump_css" >> $GITHUB_OUTPUT
+          echo "bump_js=$bump_js" >> $GITHUB_OUTPUT
+
+      - name: Bump versions
+        if: steps.check.outputs.bump_css == 'true' || steps.check.outputs.bump_js == 'true'
+        run: |
+          if [[ "${{ steps.check.outputs.bump_css }}" == "true" ]]; then
+            current=$(grep "WEBSITE_CSS_VERSION = " config.php | sed 's/.*= \([0-9]*\);.*/\1/')
+            new=$((current + 1))
+            sed -i "s/WEBSITE_CSS_VERSION = $current;/WEBSITE_CSS_VERSION = $new;/" config.php
+            echo "🎨 CSS version: $current → $new"
+          fi
+          
+          if [[ "${{ steps.check.outputs.bump_js }}" == "true" ]]; then
+            current=$(grep "WEBSITE_JS_VERSION = " config.php | sed 's/.*= \([0-9]*\);.*/\1/')
+            new=$((current + 1))
+            sed -i "s/WEBSITE_JS_VERSION = $current;/WEBSITE_JS_VERSION = $new;/" config.php
+            echo "⚡ JS version: $current → $new"
           fi
 
-      - name: Commit version changes
-        if: steps.check-changes.outputs.css_changed == 'true' || steps.check-changes.outputs.js_changed == 'true'
-        run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
-          git add config.php
-          
-          # Check if there are actually changes to commit
-          if git diff --staged --quiet; then
-            echo "No changes to commit"
-          else
-            git commit -m "Auto-bump asset versions [skip ci]"
-            git push
-            echo "✓ Asset versions committed and pushed"
-          fi
+      - name: Commit changes
+        if: steps.check.outputs.bump_css == 'true' || steps.check.outputs.bump_js == 'true'
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "Auto-bump asset versions [skip ci]"
+          file_pattern: config.php

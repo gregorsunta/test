@@ -6,6 +6,10 @@ on:
   release:
     types: [published, prereleased]
 
+permissions:
+  contents: write
+  actions: read
+
 jobs:
   bump-asset-versions:
     if: github.event_name == 'push'
@@ -24,6 +28,7 @@ jobs:
           files: |
             **/*.css
             **/*.js
+          since_last_remote_commit: true
 
       - name: Check for CSS/JS changes
         id: check-changes
@@ -34,9 +39,10 @@ jobs:
           echo "Debug: any_changed = ${{ steps.changed-files.outputs.any_changed }}"
           echo "Debug: all_changed_files = ${{ steps.changed-files.outputs.all_changed_files }}"
           
+          # Primary method: use changed-files action
           if [[ "${{ steps.changed-files.outputs.any_changed }}" == "true" ]]; then
             changed_files="${{ steps.changed-files.outputs.all_changed_files }}"
-            echo "Changed files detected: $changed_files"
+            echo "Changed files detected by action: $changed_files"
             
             # Check each file individually
             for file in $changed_files; do
@@ -51,7 +57,28 @@ jobs:
               fi
             done
           else
-            echo "No CSS/JS files changed in this push"
+            echo "Changed-files action found no CSS/JS changes"
+            
+            # Fallback method: use git diff
+            echo "Trying fallback git diff method..."
+            changed_files_git=$(git diff --name-only HEAD~1 HEAD | grep -E '\.(css|js)$' || true)
+            
+            if [[ -n "$changed_files_git" ]]; then
+              echo "Git diff found CSS/JS changes:"
+              for file in $changed_files_git; do
+                echo "Found changed file: $file"
+                if [[ "$file" == *.css ]]; then
+                  echo "css_changed=true" >> $GITHUB_OUTPUT
+                  echo "✓ CSS file changed (git diff): $file"
+                fi
+                if [[ "$file" == *.js ]]; then
+                  echo "js_changed=true" >> $GITHUB_OUTPUT
+                  echo "✓ JS file changed (git diff): $file"
+                fi
+              done
+            else
+              echo "No CSS/JS files changed in this push (confirmed by git diff)"
+            fi
           fi
 
       - name: Debug version bump conditions

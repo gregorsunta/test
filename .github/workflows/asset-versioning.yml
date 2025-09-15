@@ -44,10 +44,12 @@ jobs:
             # Check if CSS/JS versions were already bumped since last release
             # Look for auto-bump commits since the last release to see if versions were already incremented
             
-            css_bumped_since_release=$(git log ${latest_tag}..HEAD --oneline --grep="Auto-bump asset versions" | wc -l)
+            # Count auto-bump commits and strip whitespace
+            css_bumped_since_release=$(git log ${latest_tag}..HEAD --oneline --grep="Auto-bump asset versions" | wc -l | tr -d ' ')
             js_bumped_since_release=$css_bumped_since_release
             
-            echo "Auto-bump commits since release ${latest_tag}: $css_bumped_since_release"
+            echo "Auto-bump commits since release ${latest_tag}: '$css_bumped_since_release'"
+            echo "Debug: css_bumped_since_release type: $(echo -n "$css_bumped_since_release" | wc -c) characters"
             
             if [[ $css_bumped_since_release -gt 0 ]]; then
               echo "⚠️ Asset versions already bumped since last release - found $css_bumped_since_release auto-bump commit(s)"
@@ -58,6 +60,9 @@ jobs:
             
             echo "CSS bumps since last release: $css_bumped_since_release"
             echo "JS bumps since last release: $js_bumped_since_release"
+            
+            # Debug the condition that will be used later
+            echo "Debug: Will CSS be skipped? css_bumped_since_release($css_bumped_since_release) -eq 0 = $([[ $css_bumped_since_release -eq 0 ]] && echo 'false (will skip)' || echo 'true (will bump)')"
           else
             echo "No release tags found, proceeding with normal logic"
             css_bumped_since_release=0

@@ -15,7 +15,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          fetch-depth: 0
+          fetch-depth: 2
 
       - name: Get changed files
         id: changed-files
@@ -31,20 +31,34 @@ jobs:
           echo "css_changed=false" >> $GITHUB_OUTPUT
           echo "js_changed=false" >> $GITHUB_OUTPUT
           
+          echo "Debug: any_changed = ${{ steps.changed-files.outputs.any_changed }}"
+          echo "Debug: all_changed_files = ${{ steps.changed-files.outputs.all_changed_files }}"
+          
           if [[ "${{ steps.changed-files.outputs.any_changed }}" == "true" ]]; then
             changed_files="${{ steps.changed-files.outputs.all_changed_files }}"
-            echo "Changed files: $changed_files"
+            echo "Changed files detected: $changed_files"
             
-            if echo "$changed_files" | grep -q "\.css$"; then
-              echo "css_changed=true" >> $GITHUB_OUTPUT
-              echo "CSS files changed"
-            fi
-            
-            if echo "$changed_files" | grep -q "\.js$"; then
-              echo "js_changed=true" >> $GITHUB_OUTPUT
-              echo "JS files changed"
-            fi
+            # Check each file individually
+            for file in $changed_files; do
+              echo "Checking file: $file"
+              if [[ "$file" == *.css ]]; then
+                echo "css_changed=true" >> $GITHUB_OUTPUT
+                echo "✓ CSS file changed: $file"
+              fi
+              if [[ "$file" == *.js ]]; then
+                echo "js_changed=true" >> $GITHUB_OUTPUT
+                echo "✓ JS file changed: $file"
+              fi
+            done
+          else
+            echo "No CSS/JS files changed in this push"
           fi
+
+      - name: Debug version bump conditions
+        run: |
+          echo "Debug: css_changed = ${{ steps.check-changes.outputs.css_changed }}"
+          echo "Debug: js_changed = ${{ steps.check-changes.outputs.js_changed }}"
+          echo "Debug: Should bump = ${{ steps.check-changes.outputs.css_changed == 'true' || steps.check-changes.outputs.js_changed == 'true' }}"
 
       - name: Bump asset versions
         if: steps.check-changes.outputs.css_changed == 'true' || steps.check-changes.outputs.js_changed == 'true'
@@ -75,8 +89,15 @@ jobs:
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           git add config.php
-          git commit -m "Auto-bump asset versions [skip ci]"
-          git push
+          
+          # Check if there are actually changes to commit
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Auto-bump asset versions [skip ci]"
+            git push
+            echo "✓ Asset versions committed and pushed"
+          fi
 
   bump-website-version:
     if: github.event_name == 'release'
@@ -86,6 +107,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          ref: ${{ github.event.release.target_commitish }}
 
       - name: Determine version bump type
         id: version-type

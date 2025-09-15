@@ -41,9 +41,38 @@ jobs:
           if [[ -n "$latest_tag" ]]; then
             echo "Latest release tag: $latest_tag"
             
-            # Check if versions were already bumped since last release
-            css_bumped_since_release=$(git log ${latest_tag}..HEAD --oneline --grep="Auto-bump asset versions" --grep="CSS version" | wc -l)
-            js_bumped_since_release=$(git log ${latest_tag}..HEAD --oneline --grep="Auto-bump asset versions" --grep="JS version" | wc -l)
+            # Check if CSS/JS versions were already bumped since last release
+            # Compare actual version values between latest release and current HEAD
+            
+            # Get version values at latest release
+            css_version_at_release=$(git show ${latest_tag}:config.php | grep "WEBSITE_CSS_VERSION = " | sed 's/.*WEBSITE_CSS_VERSION = \([0-9]*\);.*/\1/' || echo "0")
+            js_version_at_release=$(git show ${latest_tag}:config.php | grep "WEBSITE_JS_VERSION = " | sed 's/.*WEBSITE_JS_VERSION = \([0-9]*\);.*/\1/' || echo "0")
+            
+            # Get current version values
+            css_version_current=$(grep "WEBSITE_CSS_VERSION = " config.php | sed 's/.*WEBSITE_CSS_VERSION = \([0-9]*\);.*/\1/')
+            js_version_current=$(grep "WEBSITE_JS_VERSION = " config.php | sed 's/.*WEBSITE_JS_VERSION = \([0-9]*\);.*/\1/')
+            
+            echo "CSS version at release ${latest_tag}: $css_version_at_release"
+            echo "CSS version current: $css_version_current"
+            echo "JS version at release ${latest_tag}: $js_version_at_release" 
+            echo "JS version current: $js_version_current"
+            
+            # Determine if versions were already bumped
+            if [[ $css_version_current -gt $css_version_at_release ]]; then
+              css_bumped_since_release=1
+              echo "CSS version already bumped since last release ($css_version_at_release → $css_version_current)"
+            else
+              css_bumped_since_release=0
+              echo "CSS version not bumped since last release"
+            fi
+            
+            if [[ $js_version_current -gt $js_version_at_release ]]; then
+              js_bumped_since_release=1
+              echo "JS version already bumped since last release ($js_version_at_release → $js_version_current)"
+            else
+              js_bumped_since_release=0
+              echo "JS version not bumped since last release"
+            fi
             
             echo "CSS bumps since last release: $css_bumped_since_release"
             echo "JS bumps since last release: $js_bumped_since_release"

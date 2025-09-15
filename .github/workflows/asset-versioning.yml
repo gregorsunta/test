@@ -36,6 +36,23 @@ jobs:
           echo "Debug: any_changed = ${{ steps.changed-files.outputs.any_changed }}"
           echo "Debug: all_changed_files = ${{ steps.changed-files.outputs.all_changed_files }}"
           
+          # Find the latest release tag
+          latest_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [[ -n "$latest_tag" ]]; then
+            echo "Latest release tag: $latest_tag"
+            
+            # Check if versions were already bumped since last release
+            css_bumped_since_release=$(git log ${latest_tag}..HEAD --oneline --grep="Auto-bump asset versions" --grep="CSS version" | wc -l)
+            js_bumped_since_release=$(git log ${latest_tag}..HEAD --oneline --grep="Auto-bump asset versions" --grep="JS version" | wc -l)
+            
+            echo "CSS bumps since last release: $css_bumped_since_release"
+            echo "JS bumps since last release: $js_bumped_since_release"
+          else
+            echo "No release tags found, proceeding with normal logic"
+            css_bumped_since_release=0
+            js_bumped_since_release=0
+          fi
+          
           # Primary method: use changed-files action
           if [[ "${{ steps.changed-files.outputs.any_changed }}" == "true" ]]; then
             changed_files="${{ steps.changed-files.outputs.all_changed_files }}"
@@ -45,12 +62,20 @@ jobs:
             for file in $changed_files; do
               echo "Checking file: $file"
               if [[ "$file" == *.css ]]; then
-                echo "css_changed=true" >> $GITHUB_OUTPUT
-                echo "✓ CSS file changed: $file"
+                if [[ $css_bumped_since_release -eq 0 ]]; then
+                  echo "css_changed=true" >> $GITHUB_OUTPUT
+                  echo "✓ CSS file changed: $file (will bump version)"
+                else
+                  echo "⚠️ CSS file changed: $file (but version already bumped since last release)"
+                fi
               fi
               if [[ "$file" == *.js ]]; then
-                echo "js_changed=true" >> $GITHUB_OUTPUT
-                echo "✓ JS file changed: $file"
+                if [[ $js_bumped_since_release -eq 0 ]]; then
+                  echo "js_changed=true" >> $GITHUB_OUTPUT
+                  echo "✓ JS file changed: $file (will bump version)"
+                else
+                  echo "⚠️ JS file changed: $file (but version already bumped since last release)"
+                fi
               fi
             done
           else
@@ -65,12 +90,20 @@ jobs:
               for file in $changed_files_git; do
                 echo "Found changed file: $file"
                 if [[ "$file" == *.css ]]; then
-                  echo "css_changed=true" >> $GITHUB_OUTPUT
-                  echo "✓ CSS file changed (git diff): $file"
+                  if [[ $css_bumped_since_release -eq 0 ]]; then
+                    echo "css_changed=true" >> $GITHUB_OUTPUT
+                    echo "✓ CSS file changed (git diff): $file (will bump version)"
+                  else
+                    echo "⚠️ CSS file changed (git diff): $file (but version already bumped since last release)"
+                  fi
                 fi
                 if [[ "$file" == *.js ]]; then
-                  echo "js_changed=true" >> $GITHUB_OUTPUT
-                  echo "✓ JS file changed (git diff): $file"
+                  if [[ $js_bumped_since_release -eq 0 ]]; then
+                    echo "js_changed=true" >> $GITHUB_OUTPUT
+                    echo "✓ JS file changed (git diff): $file (will bump version)"
+                  else
+                    echo "⚠️ JS file changed (git diff): $file (but version already bumped since last release)"
+                  fi
                 fi
               done
             else

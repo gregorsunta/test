@@ -25,7 +25,7 @@ jobs:
 
       - name: Get changed files
         id: changes
-        uses: tj-actions/changed-files@47.0.0
+        uses: tj-actions/changed-files@v47.0.0
         with:
           files_yaml: |
             css:
@@ -99,7 +99,7 @@ jobs:
 
       - name: Commit changes
         if: steps.check.outputs.bump_css == 'true' || steps.check.outputs.bump_js == 'true'
-        uses: stefanzweifel/git-auto-commit-action@6.0.1
+        uses: stefanzweifel/git-auto-commit-action@v6.0.1
         with:
           commit_message: "Auto-bump asset versions [skip ci]"
           file_pattern: config.php

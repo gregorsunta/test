@@ -8,20 +8,24 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: asset-versioning-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   bump-versions:
     if: "!contains(github.event.head_commit.message, '[skip ci]')"
     runs-on: ubuntu-latest
     
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
         with:
           fetch-depth: 0
           fetch-tags: true
 
       - name: Get changed files
         id: changes
-        uses: tj-actions/changed-files@v40
+        uses: tj-actions/changed-files@af292f1e845a0377b596972698a8598734eb2796
         with:
           files_yaml: |
             css:
@@ -32,17 +36,12 @@ jobs:
       - name: Check if versions need bumping
         id: check
         run: |
-          # Get latest release tag
           latest_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
-          
-          # Check if already bumped since release
           css_bumped=false
           js_bumped=false
           
           if [[ -n "$latest_tag" ]]; then
-            # Get commit hashes (not full log lines) for auto-bump commits
             auto_bump_commits=$(git log ${latest_tag}..HEAD --format="%H" --grep="Auto-bump asset versions")
-            
             if [[ -n "$auto_bump_commits" ]]; then
               for commit in $auto_bump_commits; do
                 if git show "$commit" -- config.php | grep -q "^+.*WEBSITE_CSS_VERSION"; then
@@ -55,7 +54,6 @@ jobs:
             fi
           fi
           
-          # Determine what to bump
           bump_css=false
           bump_js=false
           
@@ -75,23 +73,33 @@ jobs:
       - name: Bump versions
         if: steps.check.outputs.bump_css == 'true' || steps.check.outputs.bump_js == 'true'
         run: |
+          set -euo pipefail
+          
           if [[ "${{ steps.check.outputs.bump_css }}" == "true" ]]; then
             current=$(grep "WEBSITE_CSS_VERSION = " config.php | sed 's/.*= \([0-9]*\);.*/\1/')
+            if [[ ! "$current" =~ ^[0-9]+$ ]]; then
+              echo "❌ Invalid CSS version format: $current"
+              exit 1
+            fi
             new=$((current + 1))
-            sed -i "s/WEBSITE_CSS_VERSION = $current;/WEBSITE_CSS_VERSION = $new;/" config.php
+            sed -i "s/const WEBSITE_CSS_VERSION = $current;/const WEBSITE_CSS_VERSION = $new;/" config.php
             echo "🎨 CSS version: $current → $new"
           fi
           
           if [[ "${{ steps.check.outputs.bump_js }}" == "true" ]]; then
             current=$(grep "WEBSITE_JS_VERSION = " config.php | sed 's/.*= \([0-9]*\);.*/\1/')
+            if [[ ! "$current" =~ ^[0-9]+$ ]]; then
+              echo "❌ Invalid JS version format: $current"
+              exit 1
+            fi
             new=$((current + 1))
-            sed -i "s/WEBSITE_JS_VERSION = $current;/WEBSITE_JS_VERSION = $new;/" config.php
+            sed -i "s/const WEBSITE_JS_VERSION = $current;/const WEBSITE_JS_VERSION = $new;/" config.php
             echo "⚡ JS version: $current → $new"
           fi
 
       - name: Commit changes
         if: steps.check.outputs.bump_css == 'true' || steps.check.outputs.bump_js == 'true'
-        uses: stefanzweifel/git-auto-commit-action@v5
+        uses: stefanzweifel/git-auto-commit-action@8621497c8473e16c6a1f8ccaa8beb35c9b6e515c
         with:
           commit_message: "Auto-bump asset versions [skip ci]"
           file_pattern: config.php

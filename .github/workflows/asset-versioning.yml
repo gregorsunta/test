@@ -45,25 +45,37 @@ jobs:
             # Check if CSS/JS versions were already bumped since last release
             # Look for auto-bump commits since the last release to see if versions were already incremented
             
-            # Count auto-bump commits and strip whitespace
-            css_bumped_since_release=$(git log ${latest_tag}..HEAD --oneline --grep="Auto-bump asset versions" | wc -l | tr -d ' ')
-            js_bumped_since_release=$css_bumped_since_release
+            # Check if CSS and JS versions were independently bumped since last release
+            # We need to check the actual diff content to see which versions were changed
             
-            echo "Auto-bump commits since release ${latest_tag}: '$css_bumped_since_release'"
-            echo "Debug: css_bumped_since_release type: $(echo -n "$css_bumped_since_release" | wc -c) characters"
+            css_bumped_since_release=0
+            js_bumped_since_release=0
             
-            if [[ $css_bumped_since_release -gt 0 ]]; then
-              echo "⚠️ Asset versions already bumped since last release - found $css_bumped_since_release auto-bump commit(s)"
-              echo "This indicates CSS/JS versions were already incremented since last release"
-            else
-              echo "✓ No auto-bump commits found since last release - versions can be bumped"
-            fi
+            # Look at each auto-bump commit to see what it actually changed
+            while IFS= read -r commit_hash; do
+              if [[ -n "$commit_hash" ]]; then
+                echo "Checking auto-bump commit: $commit_hash"
+                # Check if this commit changed CSS version
+                if git show "$commit_hash" -- config.php | grep -q "^+.*WEBSITE_CSS_VERSION = "; then
+                  css_bumped_since_release=1
+                  echo "  - Found CSS version bump in $commit_hash"
+                fi
+                # Check if this commit changed JS version  
+                if git show "$commit_hash" -- config.php | grep -q "^+.*WEBSITE_JS_VERSION = "; then
+                  js_bumped_since_release=1
+                  echo "  - Found JS version bump in $commit_hash"
+                fi
+              fi
+            done <<< "$(git log ${latest_tag}..HEAD --oneline --grep="Auto-bump asset versions" --format="%H")"
             
-            echo "CSS bumps since last release: $css_bumped_since_release"
-            echo "JS bumps since last release: $js_bumped_since_release"
+            echo "=== BUMP STATUS SUMMARY ==="
+            echo "CSS bumped since release ${latest_tag}: $([[ $css_bumped_since_release -eq 1 ]] && echo 'YES' || echo 'NO')"
+            echo "JS bumped since release ${latest_tag}: $([[ $js_bumped_since_release -eq 1 ]] && echo 'YES' || echo 'NO')"
+            echo "=========================="
             
-            # Debug the condition that will be used later
-            echo "Debug: Will CSS be skipped? css_bumped_since_release($css_bumped_since_release) -eq 0 = $([[ $css_bumped_since_release -eq 0 ]] && echo 'false (will skip)' || echo 'true (will bump)')"
+            # Debug the conditions that will be used later
+            echo "Debug: Will CSS be skipped? css_bumped_since_release($css_bumped_since_release) -ne 0 = $([[ $css_bumped_since_release -ne 0 ]] && echo 'YES (will skip)' || echo 'NO (will bump)')"
+            echo "Debug: Will JS be skipped? js_bumped_since_release($js_bumped_since_release) -ne 0 = $([[ $js_bumped_since_release -ne 0 ]] && echo 'YES (will skip)' || echo 'NO (will bump)')"
           else
             echo "No release tags found, proceeding with normal logic"
             css_bumped_since_release=0

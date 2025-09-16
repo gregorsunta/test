@@ -59,12 +59,30 @@ jobs:
           bump_css=false
           bump_js=false
           
-          if [[ "${{ steps.changes.outputs.css_any_changed }}" == "true" && "$css_bumped" == "false" ]]; then
-            bump_css=true
+          # CSS decision logging
+          if [[ "${{ steps.changes.outputs.css_any_changed }}" == "true" ]]; then
+            echo "CSS files changed"
+            if [[ "$css_bumped" == "false" ]]; then
+              bump_css=true
+              echo "Will bump CSS version"
+            else
+              echo "CSS version already bumped since last release"
+            fi
+          else
+            echo "No CSS files changed"
           fi
           
-          if [[ "${{ steps.changes.outputs.js_any_changed }}" == "true" && "$js_bumped" == "false" ]]; then
-            bump_js=true
+          # JS decision logging  
+          if [[ "${{ steps.changes.outputs.js_any_changed }}" == "true" ]]; then
+            echo "JS files changed"
+            if [[ "$js_bumped" == "false" ]]; then
+              bump_js=true
+              echo "Will bump JS version"
+            else
+              echo "JS version already bumped since last release"
+            fi
+          else
+            echo "No JS files changed"
           fi
           
           echo "bump_css=$bump_css" >> $GITHUB_OUTPUT

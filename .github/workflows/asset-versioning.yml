@@ -2,7 +2,7 @@ name: Asset Version Management
 
 on:
   push:
-    branches: [master]
+    branches: [main]
     paths: ['**/*.css', '**/*.js']
 
 permissions:

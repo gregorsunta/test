@@ -85,12 +85,12 @@ jobs:
 
           echo "CSS info:"
           echo "  Current version: $css_current"
-          echo "  Last release:    $css_at_release"
+          echo "  Version at last release:    $css_at_release"
           echo "  Should bump?     $bump_css"
           echo ""
           echo "JS info:"
           echo "  Current version: $js_current"
-          echo "  Last release:    $js_at_release"
+          echo "  Version at last release:    $js_at_release"
           echo "  Should bump?     $bump_js"
 
           echo "bump_css=$bump_css" >> $GITHUB_OUTPUT

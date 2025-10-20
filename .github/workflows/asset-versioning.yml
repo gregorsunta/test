@@ -83,14 +83,20 @@ jobs:
             bump_js=true
           fi
 
-          echo "CSS: current=$css_current, last_release=$css_at_release, changed=${{ steps.changes.outputs.css_any_changed }} => bump=$bump_css"
-          echo "JS:  current=$js_current, last_release=$js_at_release, changed=${{ steps.changes.outputs.js_any_changed }} => bump=$bump_js"
+          echo "CSS info:"
+          echo "  Current version: $css_current"
+          echo "  Last release:    $css_at_release"
+          echo "  Should bump?     $bump_css"
+          echo ""
+          echo "JS info:"
+          echo "  Current version: $js_current"
+          echo "  Last release:    $js_at_release"
+          echo "  Should bump?     $bump_js"
 
           echo "bump_css=$bump_css" >> $GITHUB_OUTPUT
           echo "bump_js=$bump_js" >> $GITHUB_OUTPUT
           echo "css_current=$css_current" >> $GITHUB_OUTPUT
           echo "js_current=$js_current" >> $GITHUB_OUTPUT
-          echo "Decision: bump_css=$bump_css, bump_js=$bump_js"
 
       - name: Bump versions
         if: steps.check.outputs.bump_css == 'true' || steps.check.outputs.bump_js == 'true'

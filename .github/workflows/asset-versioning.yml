@@ -2,7 +2,7 @@ name: Asset Version Management
 
 on:
   push:
-    branches: [main]
+    branches: [master]
     paths: ['**/*.css', '**/*.js']
 
 permissions:
@@ -11,6 +11,9 @@ permissions:
 concurrency:
   group: asset-versioning-${{ github.ref }}
   cancel-in-progress: false
+
+env:
+  CONFIG_FILE: wp/wp-content/themes/databox/Util/DBoxConfig.php
 
 jobs:
   bump-versions:
@@ -36,82 +39,58 @@ jobs:
       - name: Check if versions need bumping
         id: check
         run: |
-          latest_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
-          css_bumped=false
-          js_bumped=false
+          get_version() {
+            local content=$1
+            local type=$2
+            echo "$content" | grep "const WEBSITE_${type}_VERSION = " | sed 's/.*= \([0-9]*\);.*/\1/' || echo "0"
+          }
           
+          current_config=$(cat $CONFIG_FILE)
+          css_current=$(get_version "$current_config" "CSS")
+          js_current=$(get_version "$current_config" "JS")
+          
+          latest_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
           if [[ -n "$latest_tag" ]]; then
-            css_version_at_release=$(git show ${latest_tag}:config.php | grep "WEBSITE_CSS_VERSION = " | sed 's/.*= \([0-9]*\);.*/\1/' || echo "0")
-            js_version_at_release=$(git show ${latest_tag}:config.php | grep "WEBSITE_JS_VERSION = " | sed 's/.*= \([0-9]*\);.*/\1/' || echo "0")
-            
-            css_version_current=$(grep "WEBSITE_CSS_VERSION = " config.php | sed 's/.*= \([0-9]*\);.*/\1/')
-            js_version_current=$(grep "WEBSITE_JS_VERSION = " config.php | sed 's/.*= \([0-9]*\);.*/\1/')
-            
-            if [[ $css_version_current -gt $css_version_at_release ]]; then
-              css_bumped=true
-            fi
-            
-            if [[ $js_version_current -gt $js_version_at_release ]]; then
-              js_bumped=true
-            fi
+            release_config=$(git show ${latest_tag}:${CONFIG_FILE} 2>/dev/null || echo "")
+            css_at_release=$(get_version "$release_config" "CSS")
+            js_at_release=$(get_version "$release_config" "JS")
+          else
+            css_at_release=0
+            js_at_release=0
           fi
           
           bump_css=false
           bump_js=false
           
-          # CSS decision logging
-          if [[ "${{ steps.changes.outputs.css_any_changed }}" == "true" ]]; then
-            echo "CSS files changed"
-            if [[ "$css_bumped" == "false" ]]; then
-              bump_css=true
-              echo "Will bump CSS version"
-            else
-              echo "CSS version already bumped since last release"
-            fi
-          else
-            echo "No CSS files changed"
+          if [[ "${{ steps.changes.outputs.css_any_changed }}" == "true" && $css_current -le $css_at_release ]]; then
+            bump_css=true
+            echo "✓ CSS files changed and version needs bump (current: $css_current, last release: $css_at_release)"
           fi
           
-          # JS decision logging  
-          if [[ "${{ steps.changes.outputs.js_any_changed }}" == "true" ]]; then
-            echo "JS files changed"
-            if [[ "$js_bumped" == "false" ]]; then
-              bump_js=true
-              echo "Will bump JS version"
-            else
-              echo "JS version already bumped since last release"
-            fi
-          else
-            echo "No JS files changed"
+          if [[ "${{ steps.changes.outputs.js_any_changed }}" == "true" && $js_current -le $js_at_release ]]; then
+            bump_js=true
+            echo "✓ JS files changed and version needs bump (current: $js_current, last release: $js_at_release)"
           fi
           
           echo "bump_css=$bump_css" >> $GITHUB_OUTPUT
           echo "bump_js=$bump_js" >> $GITHUB_OUTPUT
+          echo "css_current=$css_current" >> $GITHUB_OUTPUT
+          echo "js_current=$js_current" >> $GITHUB_OUTPUT
 
       - name: Bump versions
         if: steps.check.outputs.bump_css == 'true' || steps.check.outputs.bump_js == 'true'
         run: |
-          set -euo pipefail
-          
           if [[ "${{ steps.check.outputs.bump_css }}" == "true" ]]; then
-            current=$(grep "WEBSITE_CSS_VERSION = " config.php | sed 's/.*= \([0-9]*\);.*/\1/')
-            if [[ ! "$current" =~ ^[0-9]+$ ]]; then
-              echo "❌ Invalid CSS version format: $current"
-              exit 1
-            fi
+            current=${{ steps.check.outputs.css_current }}
             new=$((current + 1))
-            sed -i "s/const WEBSITE_CSS_VERSION = $current;/const WEBSITE_CSS_VERSION = $new;/" config.php
+            sed -i "s/const WEBSITE_CSS_VERSION = $current;/const WEBSITE_CSS_VERSION = $new;/" $CONFIG_FILE
             echo "CSS: $current → $new"
           fi
           
           if [[ "${{ steps.check.outputs.bump_js }}" == "true" ]]; then
-            current=$(grep "WEBSITE_JS_VERSION = " config.php | sed 's/.*= \([0-9]*\);.*/\1/')
-            if [[ ! "$current" =~ ^[0-9]+$ ]]; then
-              echo "❌ Invalid JS version format: $current"
-              exit 1
-            fi
+            current=${{ steps.check.outputs.js_current }}
             new=$((current + 1))
-            sed -i "s/const WEBSITE_JS_VERSION = $current;/const WEBSITE_JS_VERSION = $new;/" config.php
+            sed -i "s/const WEBSITE_JS_VERSION = $current;/const WEBSITE_JS_VERSION = $new;/" $CONFIG_FILE
             echo "JS: $current → $new"
           fi
 
@@ -120,4 +99,4 @@ jobs:
         uses: stefanzweifel/git-auto-commit-action@v6.0.1
         with:
           commit_message: "Auto-bump asset versions [skip ci]"
-          file_pattern: config.php
+          file_pattern: ${{ env.CONFIG_FILE }}

@@ -17,7 +17,7 @@ env:
 
 jobs:
   bump-versions:
-    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    if: "!contains(github.event.head_commit.message, '[skip ci]')" # Prevent infinite loop
     runs-on: ubuntu-latest
     
     steps:
@@ -37,7 +37,19 @@ jobs:
             js:
               - '**/*.js'
 
-      - name: Check if versions need bumping
+      - name: Changed files summary
+        run: |
+          echo "CONFIG_FILE: ${{ env.CONFIG_FILE }}"
+          echo "CSS changed: ${{ steps.changes.outputs.css_any_changed }}"
+          if [[ "${{ steps.changes.outputs.css_any_changed }}" == "true" ]]; then
+            echo "CSS files: ${{ steps.changes.outputs.css_all_changed_files }}"
+          fi
+          echo "JS  changed: ${{ steps.changes.outputs.js_any_changed }}"
+          if [[ "${{ steps.changes.outputs.js_any_changed }}" == "true" ]]; then
+            echo "JS files: ${{ steps.changes.outputs.js_all_changed_files }}"
+          fi
+
+      - name: Decide bumps
         id: check
         run: |
           get_version() {
@@ -65,18 +77,20 @@ jobs:
           
           if [[ "${{ steps.changes.outputs.css_any_changed }}" == "true" && $css_current -le $css_at_release ]]; then
             bump_css=true
-            echo "✓ CSS files changed and version needs bump (current: $css_current, last release: $css_at_release)"
           fi
           
           if [[ "${{ steps.changes.outputs.js_any_changed }}" == "true" && $js_current -le $js_at_release ]]; then
             bump_js=true
-            echo "✓ JS files changed and version needs bump (current: $js_current, last release: $js_at_release)"
           fi
-          
+
+          echo "CSS: current=$css_current, last_release=$css_at_release, changed=${{ steps.changes.outputs.css_any_changed }} => bump=$bump_css"
+          echo "JS:  current=$js_current, last_release=$js_at_release, changed=${{ steps.changes.outputs.js_any_changed }} => bump=$bump_js"
+
           echo "bump_css=$bump_css" >> $GITHUB_OUTPUT
           echo "bump_js=$bump_js" >> $GITHUB_OUTPUT
           echo "css_current=$css_current" >> $GITHUB_OUTPUT
           echo "js_current=$js_current" >> $GITHUB_OUTPUT
+          echo "Decision: bump_css=$bump_css, bump_js=$bump_js"
 
       - name: Bump versions
         if: steps.check.outputs.bump_css == 'true' || steps.check.outputs.bump_js == 'true'
@@ -85,14 +99,14 @@ jobs:
             current=${{ steps.check.outputs.css_current }}
             new=$((current + 1))
             sed -i "s/const WEBSITE_CSS_VERSION = $current;/const WEBSITE_CSS_VERSION = $new;/" $CONFIG_FILE
-            echo "CSS: $current → $new"
+            echo "Bumped CSS: $current → $new"
           fi
           
           if [[ "${{ steps.check.outputs.bump_js }}" == "true" ]]; then
             current=${{ steps.check.outputs.js_current }}
             new=$((current + 1))
             sed -i "s/const WEBSITE_JS_VERSION = $current;/const WEBSITE_JS_VERSION = $new;/" $CONFIG_FILE
-            echo "JS: $current → $new"
+            echo "Bumped JS: $current → $new"
           fi
 
       - name: Commit changes

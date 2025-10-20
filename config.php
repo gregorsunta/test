@@ -2,8 +2,8 @@
 
 class DBoxConfig {
 
-    const WEBSITE_CSS_VERSION = 23;
+    const WEBSITE_CSS_VERSION = 24;
 
-    const WEBSITE_JS_VERSION = 12;
+    const WEBSITE_JS_VERSION = 13;
 
 }

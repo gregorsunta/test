@@ -3,7 +3,7 @@ name: Asset Version Management
 on:
   push:
     branches: [main]
-    paths: ['**/*.css', '**/*.js']
+    paths: ['**/*.css', '**/*.less', '**/*.js']
 
 permissions:
   contents: write
@@ -33,6 +33,7 @@ jobs:
           files_yaml: |
             css:
               - '**/*.css'
+              - '**/*.less'
             js:
               - '**/*.js'
 

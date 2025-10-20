@@ -96,7 +96,7 @@ jobs:
 
       - name: Commit changes
         if: steps.check.outputs.bump_css == 'true' || steps.check.outputs.bump_js == 'true'
-        uses: stefanzweifel/git-auto-commit-action@v6.0.1
+        uses: stefanzweifel/git-auto-commit-action@v28e16e81777b558cc906c8750092100bbb34c5e3 # Pinned to v7.0.0
         with:
           commit_message: "Auto-bump asset versions [skip ci]"
           file_pattern: ${{ env.CONFIG_FILE }}

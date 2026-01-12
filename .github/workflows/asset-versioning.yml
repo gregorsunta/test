@@ -2,7 +2,7 @@ name: Asset Version Management
 
 on:
   push:
-    branches: [main]
+    branches: [master]
     paths: ['**/*.css', '**/*.less', '**/*.js']
 
 permissions:
@@ -13,7 +13,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  CONFIG_FILE: config.php
+  CONFIG_FILE: wp/wp-content/themes/databox/Util/DBoxConfig.php
 
 jobs:
   bump-versions:
@@ -21,14 +21,14 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # Pinned to v5.0.0 
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
           fetch-tags: true
 
       - name: Get changed files
         id: changes
-        uses: tj-actions/changed-files@24d32ffd492484c1d75e0c0b894501ddb9d30d62 # Pinned to v47.0.0
+        uses: tj-actions/changed-files@v47
         with:
           files_yaml: |
             css:
@@ -37,19 +37,19 @@ jobs:
             js:
               - '**/*.js'
 
-      - name: Changed files summary
-        run: |
-          echo "CONFIG_FILE: ${{ env.CONFIG_FILE }}"
-          echo "CSS changed: ${{ steps.changes.outputs.css_any_changed }}"
-          if [[ "${{ steps.changes.outputs.css_any_changed }}" == "true" ]]; then
-            echo "CSS files: ${{ steps.changes.outputs.css_all_changed_files }}"
-          fi
-          echo "JS  changed: ${{ steps.changes.outputs.js_any_changed }}"
-          if [[ "${{ steps.changes.outputs.js_any_changed }}" == "true" ]]; then
-            echo "JS files: ${{ steps.changes.outputs.js_all_changed_files }}"
-          fi
+      # - name: Changed files summary
+      #   run: |
+      #     echo "CONFIG_FILE: ${{ env.CONFIG_FILE }}"
+      #     echo "CSS changed: ${{ steps.changes.outputs.css_any_changed }}"
+      #     if [[ "${{ steps.changes.outputs.css_any_changed }}" == "true" ]]; then
+      #       echo "CSS files: ${{ steps.changes.outputs.css_all_changed_files }}"
+      #     fi
+      #     echo "JS  changed: ${{ steps.changes.outputs.js_any_changed }}"
+      #     if [[ "${{ steps.changes.outputs.js_any_changed }}" == "true" ]]; then
+      #       echo "JS files: ${{ steps.changes.outputs.js_all_changed_files }}"
+      #     fi
 
-      - name: Decide bumps
+      - name: Check if versions need to be bumped
         id: check
         run: |
           get_version() {
@@ -117,7 +117,7 @@ jobs:
 
       - name: Commit changes
         if: steps.check.outputs.bump_css == 'true' || steps.check.outputs.bump_js == 'true'
-        uses: stefanzweifel/git-auto-commit-action@28e16e81777b558cc906c8750092100bbb34c5e3 # Pinned to v7.0.0
+        uses: stefanzweifel/git-auto-commit-action@v7
         with:
           commit_message: "Auto-bump asset versions [skip ci]"
           file_pattern: ${{ env.CONFIG_FILE }}

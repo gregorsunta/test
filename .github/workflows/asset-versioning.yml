@@ -13,7 +13,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  CONFIG_FILE: wp/wp-content/themes/databox/Util/DBoxConfig.php
+  CONFIG_FILE: config.php
 
 jobs:
   bump-versions:

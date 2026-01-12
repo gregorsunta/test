@@ -37,17 +37,17 @@ jobs:
             js:
               - '**/*.js'
 
-      # - name: Changed files summary
-      #   run: |
-      #     echo "CONFIG_FILE: ${{ env.CONFIG_FILE }}"
-      #     echo "CSS changed: ${{ steps.changes.outputs.css_any_changed }}"
-      #     if [[ "${{ steps.changes.outputs.css_any_changed }}" == "true" ]]; then
-      #       echo "CSS files: ${{ steps.changes.outputs.css_all_changed_files }}"
-      #     fi
-      #     echo "JS  changed: ${{ steps.changes.outputs.js_any_changed }}"
-      #     if [[ "${{ steps.changes.outputs.js_any_changed }}" == "true" ]]; then
-      #       echo "JS files: ${{ steps.changes.outputs.js_all_changed_files }}"
-      #     fi
+      - name: Changed files summary
+        run: |
+          echo "CONFIG_FILE: ${{ env.CONFIG_FILE }}"
+          echo "CSS changed: ${{ steps.changes.outputs.css_any_changed }}"
+          if [[ "${{ steps.changes.outputs.css_any_changed }}" == "true" ]]; then
+            echo "CSS files: ${{ steps.changes.outputs.css_all_changed_files }}"
+          fi
+          echo "JS  changed: ${{ steps.changes.outputs.js_any_changed }}"
+          if [[ "${{ steps.changes.outputs.js_any_changed }}" == "true" ]]; then
+            echo "JS files: ${{ steps.changes.outputs.js_all_changed_files }}"
+          fi
 
       - name: Check if versions need to be bumped
         id: check
